@@ -1,0 +1,26 @@
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ./data/ollama:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    # Pull the model on first run, then keep serving.
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        ollama serve &
+        pid=$$!
+        # Wait for the server to accept requests.
+        until ollama list >/dev/null 2>&1; do sleep 1; done
+        # Pull the model if it isn't present yet.
+        ollama list | grep -q "gemma3:1b" || ollama pull gemma3:1b
+        wait $$pid
