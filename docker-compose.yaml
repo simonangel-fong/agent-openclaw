@@ -40,3 +40,53 @@ services:
       - WEBUI_AUTH=false
     volumes:
       - ./data/openwebui:/app/backend/data
+
+  # OpenClaw gateway (the agent daemon + Control UI on :18789).
+  openclaw-gateway:
+    image: ghcr.io/openclaw/openclaw:latest
+    container_name: openclaw-gateway
+    restart: unless-stopped
+    depends_on:
+      ollama:
+        condition: service_healthy
+    ports:
+      - "18789:18789"
+    environment:
+      - OPENCLAW_GATEWAY_BIND=lan
+      - OPENCLAW_GATEWAY_TOKEN=${OPENCLAW_GATEWAY_TOKEN}
+    volumes:
+      - ./data/openclaw:/home/node/.openclaw
+      - ./data/openclaw/config:/home/node/.config/openclaw
+
+  # One-shot onboarding: points OpenClaw at Ollama's NATIVE api (no /v1),
+  # writes config, then exits. Shares the gateway's network namespace so it
+  # reaches Ollama at the same address the gateway uses.
+  openclaw-cli:
+    image: ghcr.io/openclaw/openclaw:latest
+    container_name: openclaw-cli
+    restart: "no"
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      - OPENCLAW_GATEWAY_TOKEN=${OPENCLAW_GATEWAY_TOKEN}
+    volumes:
+      - ./data/openclaw:/home/node/.openclaw
+      - ./data/openclaw/config:/home/node/.config/openclaw
+    entrypoint: ["openclaw"]
+    command:
+      - onboard
+      - --non-interactive
+      - --accept-risk
+      - --mode=local
+      - --auth-choice=ollama
+      - --custom-base-url=http://ollama:11434
+      - --custom-model-id=qwen2.5-coder:1.5b
+      - --gateway-auth=token
+      - --gateway-token-ref-env=OPENCLAW_GATEWAY_TOKEN
+      # Bind to lan so the mapped host port 18789 reaches the gateway (loopback
+      # would only listen on the container's own localhost).
+      - --gateway-bind=lan
+      # The gateway is a separate container, so the post-onboard health probe to
+      # 127.0.0.1:18789 can't reach it — skip it; onboarding writes config fine.
+      - --skip-health

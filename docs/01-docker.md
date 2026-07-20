@@ -46,13 +46,64 @@ docker compose ps
 
 ```
 
-Pull other models to try (7b is a stronger tool-caller for later steps):
+---
+
+## OpenClaw service
+
+The agent, wired to the **native** Ollama API (no `/v1`). Two services:
+
+- `openclaw-gateway` — the agent daemon + Control UI on `:18789`.
+- `openclaw-cli` — a **one-shot** onboarding run that writes the config, then
+  exits (it does not stay up).
+
+The gateway needs a token. Generate one into `.env` (gitignored) first:
 
 ```sh
-docker compose exec ollama ollama pull qwen2.5-coder:7b
+# .env  ->  OPENCLAW_GATEWAY_TOKEN=<64 hex chars>
+openssl rand -hex 32
 ```
 
-Tear down (`-v` also removes named volumes):
+Onboard against Ollama, then start the gateway:
+
+```sh
+# 1. one-shot onboarding (writes ~/.openclaw/openclaw.json, points at Ollama)
+docker compose run --rm openclaw-cli
+
+# 2. start / reload the gateway to pick up the config
+docker compose up -d openclaw-gateway
+
+# confirm all three services: http://localhost:18789/
+docker compose ps
+# NAME               STATUS                    PORTS
+# ollama             Up (healthy)              0.0.0.0:11434->11434/tcp
+# openwebui          Up (healthy)              0.0.0.0:3000->8080/tcp
+# openclaw-gateway   Up (healthy)              0.0.0.0:18789->18789/tcp
+```
+
+Verify the agent end-to-end (text task — see the DoD scope note in the plan):
+
+```sh
+docker compose exec openclaw-gateway \
+  openclaw agent --session-id haiku \
+  --message "Write a haiku about the ocean. Reply with only the haiku."
+# Whispers dance in the sea,
+# Silent waves whisper secrets deep,
+# Ocean whispers to all.
+```
+
+> **Notes**
+> - **Text only, no tools.** On CPU / <7 GB RAM, `qwen2.5-coder` returns
+>   tool-call JSON as plain text (not structured `tool_calls`), so OpenClaw
+>   won't execute it. Scope is text generation only.
+> - **Model size vs. speed.** `1.5b` (986 MB) is the default — snappier on CPU.
+>   `7b` (4.7 GB) answers better but each turn is slow. Switch with:
+>   `docker compose exec openclaw-gateway openclaw config set
+>   agents.defaults.model.primary "ollama/qwen2.5-coder:1.5b"` then restart.
+> - **`down -v` wipes `./data`** — including pulled models; first `up` re-pulls.
+
+---
+
+Tear down (`-v` also removes named volumes and the `./data` bind content):
 
 ```sh
 docker compose down -v
