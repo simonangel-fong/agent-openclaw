@@ -1,0 +1,12 @@
+# GPU override — applied only on EC2, on top of docker-compose.yaml:
+#   docker compose -f docker-compose.yaml -f docker-compose.gpu.yaml up -d
+# The base manifest stays CPU-only so it runs unchanged locally.
+services:
+  ollama:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
