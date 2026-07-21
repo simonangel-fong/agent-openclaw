@@ -7,7 +7,7 @@ usermod -aG docker ubuntu
 
 # 2. NVIDIA Container Toolkit (driver already present via DL GPU AMI)
 curl -fsSL https://nvidia.github.io/libnvidia-container/gpgkey \
-  | gpg --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
+  | gpg --batch --yes --no-tty --dearmor -o /usr/share/keyrings/nvidia-container-toolkit-keyring.gpg
 curl -fsSL https://nvidia.github.io/libnvidia-container/stable/deb/nvidia-container-toolkit.list \
   | sed 's#deb https://#deb [signed-by=/usr/share/keyrings/nvidia-container-toolkit-keyring.gpg] https://#g' \
   > /etc/apt/sources.list.d/nvidia-container-toolkit.list
@@ -30,6 +30,12 @@ if [ ! -f .env ]; then
 fi
 
 COMPOSE="docker compose -f docker-compose.yaml -f docker-compose.gpu.yaml"
+
+# The openclaw containers run as user `node` (uid/gid 1000) and must write to
+# the bind-mounted data dirs. On this Linux host Docker creates them as root,
+# so pre-create and chown to 1000 or onboarding fails with EACCES.
+mkdir -p data/openclaw/config data/openwebui data/ollama
+chown -R 1000:1000 data/openclaw
 
 # Bring up services (onboarding container writes config, then exits).
 $COMPOSE up -d ollama openwebui openclaw-gateway

@@ -1,5 +1,6 @@
 # ec2.tf
 
+# AMI: DL OSS Ubuntu
 data "aws_ami" "dl_gpu" {
   most_recent = true
   owners      = ["898082745236"]
@@ -15,6 +16,7 @@ data "aws_ami" "dl_gpu" {
   }
 }
 
+# SG
 resource "aws_security_group" "openclaw" {
   name        = "openclaw-sg"
   description = "OpenClaw stack - inbound locked to a single IP."
@@ -44,15 +46,20 @@ resource "aws_security_group" "openclaw" {
   }
 }
 
+# #################################
+# EC2
+# #################################
 resource "aws_instance" "openclaw" {
   ami           = data.aws_ami.dl_gpu.id
   instance_type = local.ec2_instance_type
   key_name      = var.ssh_key_name
 
+  # network
   subnet_id                   = data.aws_subnets.default.ids[0]
   vpc_security_group_ids      = [aws_security_group.openclaw.id]
   associate_public_ip_address = true
 
+  # EBS
   root_block_device {
     volume_size           = local.ec2_root_volume_gb
     volume_type           = "gp3"
@@ -60,6 +67,7 @@ resource "aws_instance" "openclaw" {
     encrypted             = true
   }
 
+  # bootstrap
   user_data = templatefile("${path.module}/user_data.sh", {
     repo_url = local.openclaw_repo_url
     model_id = local.openclaw_model_id
@@ -70,6 +78,7 @@ resource "aws_instance" "openclaw" {
   }
 }
 
+# EIP
 resource "aws_eip" "openclaw" {
   instance = aws_instance.openclaw.id
   domain   = "vpc"
@@ -77,4 +86,7 @@ resource "aws_eip" "openclaw" {
   tags = {
     Name = "openclaw-eip"
   }
+
+  # use igtw
+  depends_on = [data.aws_internet_gateway.default]
 }

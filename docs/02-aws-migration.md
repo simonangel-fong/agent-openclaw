@@ -192,4 +192,34 @@ terraform -chdir=infra fmt && terraform -chdir=infra validate
 terraform -chdir=infra apply -auto-approve
 
 terraform -chdir=infra destroy -auto-approve
+
+
+ssh -i "<pem>" ubuntu@100.26.64.29
+
+
+# confirm bootstrap
+sudo tail -n 50 /var/log/cloud-init-output.log
+
+
+sudo docker compose exec ollama nvidia-smi   
+# Tue Jul 21 15:48:24 2026
+# +-----------------------------------------------------------------------------------------+
+# | NVIDIA-SMI 595.71.05              Driver Version: 595.71.05      CUDA Version: 13.2     |
+# +-----------------------------------------+------------------------+----------------------+
+# | GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+# | Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+# |                                         |                        |               MIG M. |
+# |=========================================+========================+======================|
+# |   0  Tesla T4                       On  |   00000000:00:1E.0 Off |                    0 |
+# | N/A   44C    P0             33W /   70W |    1239MiB /  15360MiB |      0%      Default |
+# |                                         |                        |                  N/A |
+# +-----------------------------------------+------------------------+----------------------+
+
+# +-----------------------------------------------------------------------------------------+
+# | Processes:                                                                              |
+# |  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+# |        ID   ID                                                               Usage      |
+# |=========================================================================================|
+# |    0   N/A  N/A             778      C   /usr/lib/ollama/llama-server           1236MiB |
+# +-----------------------------------------------------------------------------------------+
 ```

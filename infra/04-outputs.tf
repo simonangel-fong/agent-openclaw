@@ -14,7 +14,7 @@ output "urls" {
 
 output "ssh" {
   description = "SSH command (DL GPU AMI default user is ubuntu)."
-  value       = "ssh ubuntu@${aws_eip.openclaw.public_ip}"
+  value       = "ssh -i '${var.ssh_key_name}.pem' ubuntu@${aws_eip.openclaw.public_ip}"
 }
 
 output "watch_bootstrap" {
