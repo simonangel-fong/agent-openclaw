@@ -221,7 +221,7 @@ __marimo__/
 data/
 
 # Terraform
-**/.terraform/*
+**/.terraform/
 *.tfstate
 *.tfstate.*
 crash.log
@@ -229,3 +229,4 @@ crash.*.log
 *.tfplan
 terraform.tfvars
 # Keep .terraform.lock.hcl tracked (provider version pinning)
+backend.hcl

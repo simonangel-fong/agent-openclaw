@@ -185,9 +185,11 @@ docker compose up -d
 ```
 
 ```sh
-cd infra && terraform init -input=false
+terraform -chdir=infra init -input=false -backend-config=backend.hcl
 
-terraform fmt && terraform validate
+terraform -chdir=infra fmt && terraform -chdir=infra validate
 
-terraform apply -auto-approve
+terraform -chdir=infra apply -auto-approve
+
+terraform -chdir=infra destroy -auto-approve
 ```

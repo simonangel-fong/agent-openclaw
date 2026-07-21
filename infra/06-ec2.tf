@@ -1,31 +1,4 @@
-terraform {
-  required_version = ">= 1.5"
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = "~> 5.0"
-    }
-  }
-}
-
-provider "aws" {
-  region = var.region
-}
-
-# AWS Deep Learning Base GPU AMI (Ubuntu 22.04) — ships NVIDIA drivers, so
-# user_data only needs to add the Container Toolkit. Owner 898082745236 = AWS.
-# Default VPC and its subnets. ca-central-1's default VPC has a single subnet,
-# so pick the first one available for the instance.
-data "aws_vpc" "default" {
-  default = true
-}
-
-data "aws_subnets" "default" {
-  filter {
-    name   = "vpc-id"
-    values = [data.aws_vpc.default.id]
-  }
-}
+# ec2.tf
 
 data "aws_ami" "dl_gpu" {
   most_recent = true
@@ -73,7 +46,7 @@ resource "aws_security_group" "openclaw" {
 
 resource "aws_instance" "openclaw" {
   ami           = data.aws_ami.dl_gpu.id
-  instance_type = var.instance_type
+  instance_type = local.ec2_instance_type
   key_name      = var.ssh_key_name
 
   subnet_id                   = data.aws_subnets.default.ids[0]
@@ -81,13 +54,15 @@ resource "aws_instance" "openclaw" {
   associate_public_ip_address = true
 
   root_block_device {
-    volume_size = var.root_volume_gb
-    volume_type = "gp3"
+    volume_size           = local.ec2_root_volume_gb
+    volume_type           = "gp3"
+    delete_on_termination = true
+    encrypted             = true
   }
 
   user_data = templatefile("${path.module}/user_data.sh", {
-    repo_url = var.repo_url
-    model_id = var.model_id
+    repo_url = local.openclaw_repo_url
+    model_id = local.openclaw_model_id
   })
 
   tags = {
