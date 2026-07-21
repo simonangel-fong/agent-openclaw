@@ -1,0 +1,100 @@
+# Helm values for the community openclaw/openclaw chart (serhanekicii).
+# Points OpenClaw at the in-cluster Ollama (from the openwebui chart) and wires a
+# Slack channel. Config is declared here and merged into the PVC by the chart's
+# init-config container (no `openclaw onboard` step).
+#
+#   helm install openclaw openclaw/openclaw -n openclaw -f k8s/openclaw-values.yaml
+#
+# Requires a Secret named `openclaw-env-secret` (see docs/03-k8s-kind.md) holding:
+#   OPENCLAW_GATEWAY_TOKEN, SLACK_BOT_TOKEN, SLACK_APP_TOKEN
+
+app-template:
+  # NOTE: `merge` preserves whatever is already on the PVC. If you change the
+  # config below and re-upgrade, merge will NOT remove keys you deleted — to get
+  # a clean write, uninstall + delete the `openclaw` PVC, then reinstall.
+  configMode: merge
+
+  # Trim chart extras we don't need for a local CPU text run.
+  # NOTE: `browser.enabled: false` (in openclaw.json) only disables OpenClaw's
+  # browser *feature* — the chart still deploys a Chromium *sidecar* container.
+  # It's harmless (idles); a chart-level toggle would be needed to drop it.
+  skills: []                       # skip ClawHub skill install on startup
+
+  controllers:
+    main:
+      containers:
+        main:
+          # Load Slack + gateway tokens from the Secret; openclaw.json references
+          # them as ${SLACK_BOT_TOKEN} etc.
+          envFrom:
+            - secretRef:
+                name: openclaw-env-secret
+
+  configMaps:
+    config:
+      enabled: true
+      data:
+        openclaw.json: |
+          {
+            // Local, port-forward-only (no ingress) — no gateway token auth
+            // needed. Matches the chart's default gateway block.
+            "gateway": {
+              "port": 18789,
+              "mode": "local"
+            },
+
+            // Local CPU box — no browser sidecar.
+            "browser": { "enabled": false },
+
+            "models": {
+              "providers": {
+                "ollama": {
+                  "baseUrl": "http://openwebui-ollama:11434",
+                  "api": "ollama"
+                }
+              }
+            },
+
+            "agents": {
+              "defaults": {
+                "workspace": "/home/node/.openclaw/workspace",
+                "model": { "primary": "ollama/qwen2.5-coder:1.5b" },
+                "timeoutSeconds": 600,
+                "maxConcurrent": 1
+              },
+              "list": [
+                { "id": "main", "default": true,
+                  "identity": { "name": "OpenClaw", "emoji": "🦞" } }
+              ]
+            },
+
+            // Text-only scope: no web search/fetch tools.
+            "tools": {
+              "profile": "coding",
+              "web": { "search": { "enabled": false }, "fetch": { "enabled": false } }
+            },
+
+            "channels": {
+              "slack": {
+                "enabled": true,
+                "botToken": "${SLACK_BOT_TOKEN}",
+                "appToken": "${SLACK_APP_TOKEN}"
+              }
+            }
+          }
+
+  persistence:
+    data:
+      enabled: true
+      size: "5Gi"
+      accessMode: ReadWriteOnce
+
+  service:
+    main:
+      ports:
+        http:
+          port: 18789
+
+  ingress:
+    main:
+      enabled: false

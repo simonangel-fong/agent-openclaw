@@ -1,3 +1,45 @@
+# Openclaw - Local Docker
+
+[Back](../README.md)
+
+- [Openclaw - Local Docker](#openclaw---local-docker)
+  - [Architecture](#architecture)
+  - [Ollama service](#ollama-service)
+  - [OpenWebUI service](#openwebui-service)
+  - [OpenClaw service](#openclaw-service)
+  - [Clean up](#clean-up)
+
+---
+
+## Architecture
+
+```
+                +----------------+
+  browser  -->  |   OpenWebUI    |  --\
+                +----------------+     \
+                                        +-->  +-------------------+
+                +----------------+     /      |      Ollama       |
+  agent    -->  |   OpenClaw     |  --/       | (qwen2.5-coder)   |
+                +----------------+            +-------------------+
+```
+
+- **OpenWebUI** → Ollama native integration (chat).
+- **OpenClaw** → Ollama **native** API with `api: "ollama"`. Do **not** use the
+  `/v1` OpenAI-compatible URL — per the docs it breaks tool calling and the model
+  emits raw tool-call JSON as plain text.
+
+---
+
+- Environement:
+  - Local: Laptop, <7GB RAM; CPU
+  - OS: Windows
+  - Container: Docker Deskop
+
+- Model:
+  - qwen2.5-coder:1.5b: requires limited resource
+
+---
+
 ## Ollama service
 
 - Bring up the local **Ollama** service
@@ -91,17 +133,9 @@ docker compose exec openclaw-gateway \
 # Ocean whispers to all.
 ```
 
-> **Notes**
-> - **Text only, no tools.** On CPU / <7 GB RAM, `qwen2.5-coder` returns
->   tool-call JSON as plain text (not structured `tool_calls`), so OpenClaw
->   won't execute it. Scope is text generation only.
-> - **Model size vs. speed.** `1.5b` (986 MB) is the default — snappier on CPU.
->   `7b` (4.7 GB) answers better but each turn is slow. Switch with:
->   `docker compose exec openclaw-gateway openclaw config set
->   agents.defaults.model.primary "ollama/qwen2.5-coder:1.5b"` then restart.
-> - **`down -v` wipes `./data`** — including pulled models; first `up` re-pulls.
-
 ---
+
+## Clean up
 
 Tear down (`-v` also removes named volumes and the `./data` bind content):
 

@@ -1,0 +1,43 @@
+# Helm values for the official open-webui/open-webui chart.
+# Brings up OpenWebUI + a bundled Ollama subchart, pulls our model on startup.
+#
+#   helm install openwebui open-webui/open-webui -n openclaw -f k8s/openwebui-values.yaml
+#
+# NOTE: model-pull + model-PVC live under the SECOND `ollama:` key — that inner
+# block is passed straight through to the otwld/ollama-helm subchart.
+
+ollama:
+  enabled: true                 # install Ollama as a subchart
+  # Values below are forwarded to the otwld/ollama-helm subchart:
+  ollama:
+    models:
+      pull:
+        - qwen2.5-coder:1.5b     # pull our model on startup
+    persistentVolume:
+      enabled: true             # keep the MODEL across restarts (avoids re-pull)
+
+# OpenWebUI's own chat/data PVC — NOT persisted (per decision).
+persistence:
+  enabled: false
+
+# Disable login to match the compose setup.
+# NOTE: WEBUI_AUTH=false only applies to a FRESH DB with zero users. If an admin
+# was already created, it's ignored — restart the pod (persistence is off, so the
+# SQLite DB is ephemeral) to get a clean no-auth boot.
+# DEFAULT_USER_ROLE=admin makes any first-signup user an admin (not "pending"),
+# as a fallback if signups happen.
+extraEnvVars:
+  - name: WEBUI_AUTH
+    value: "false"
+  - name: DEFAULT_USER_ROLE
+    value: "admin"
+  - name: ENABLE_SIGNUP
+    value: "true"
+
+# No ingress — we reach it via `kubectl port-forward`.
+service:
+  type: ClusterIP
+
+# Pipelines subchart is on by default; we don't need it for the text DoD.
+pipelines:
+  enabled: false
