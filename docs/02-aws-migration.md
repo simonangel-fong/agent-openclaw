@@ -175,3 +175,19 @@ On-demand `g4dn.xlarge` in `us-east-1` ≈ **$0.526/hr** (~$384/mo if left on 24
 
 - Multi-user auth, TLS/HTTPS (using IP-restricted HTTP), autoscaling, managed
   model storage (S3), and CI/CD for the instance. All deferrable.
+
+---
+
+## Development
+
+```sh
+docker compose up -d
+```
+
+```sh
+cd infra && terraform init -input=false
+
+terraform fmt && terraform validate
+
+terraform apply -auto-approve
+```

@@ -219,3 +219,13 @@ __marimo__/
 
 # Docker service data volumes (models, state — not committed)
 data/
+
+# Terraform
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+*.tfplan
+terraform.tfvars
+# Keep .terraform.lock.hcl tracked (provider version pinning)
