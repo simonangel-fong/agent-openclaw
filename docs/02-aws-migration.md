@@ -168,6 +168,30 @@ docker compose -f docker-compose.yaml -f docker-compose.gpu.yaml up -d openclaw-
 12. If tooling still misbehaves, bump the model — **do not switch to `/v1`**
     (same rule as the local plan).
 
+> **Status — Phase D: PARTIAL (tool threshold crossed; execution blocked).**
+>
+> - ✅ **The GPU cleared the tool-calling wall.** On `qwen2.5-coder:7b` (loaded
+>   on the T4, ~5 GB VRAM) the agent reliably emits **well-formed structured
+>   tool calls** — e.g. `{"name":"write",...}` then `{"name":"sessions_send",
+>   "message":"python /tmp/hello.py"}` — which `1.5b` could not do. This is the
+>   core claim of this migration, and it holds.
+> - ❌ **Tool execution does not fire.** OpenClaw `2026.6.33`'s **embedded
+>   agent** parses the model output but logs
+>   `Assistant reply looks like a tool call, but no structured tool invocation
+>   was emitted; treating it as text` and ends `stopReason=stop` without running
+>   the tool. No file is written, no code runs. This is an **OpenClaw runtime
+>   limitation**, not a model, profile, or infra issue — bumping to `14b`
+>   (step 12) does **not** help, since the model is already emitting correct
+>   calls. Sharing the gateway network namespace (so the CLI reaches the gateway
+>   instead of its own loopback) removed the `ws 1006` error but the agent still
+>   routes through the embedded path.
+>
+> **Decision: mark Phase D partially met and defer.** The migration goal — a GPU
+> box that runs a model large enough to emit structured tool calls — is proven.
+> Getting those calls to **execute** is follow-up work: try a different pinned
+> OpenClaw image tag, or a non-embedded agent runtime, once the upstream bug is
+> resolved. Tracked against OpenClaw issues re: embedded-agent tool execution.
+
 ## Budget
 
 On-demand `g4dn.xlarge` in `us-east-1` ≈ **$0.526/hr** (~$384/mo if left on 24/7).
