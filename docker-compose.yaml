@@ -65,7 +65,14 @@ services:
     image: ghcr.io/openclaw/openclaw:latest
     container_name: openclaw-cli
     restart: "no"
+    # Share the gateway container's network namespace so the CLI reaches the
+    # running gateway at 127.0.0.1:18789 (its own loopback otherwise has nothing
+    # listening → ws 1006 → embedded fallback with no structured tool calls).
+    # It still reaches ollama via the gateway's network (same compose network).
+    network_mode: "service:openclaw-gateway"
     depends_on:
+      openclaw-gateway:
+        condition: service_started
       ollama:
         condition: service_healthy
     environment:

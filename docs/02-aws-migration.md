@@ -139,7 +139,7 @@ docker compose -f docker-compose.yaml -f docker-compose.gpu.yaml up -d openclaw-
 8. This proves the migration is correct before changing anything else.
 
 > **Note — OpenClaw Control UI (browser) skipped; verified via CLI instead.**
-> The browser Control UI needs a *secure context* to build device identity —
+> The browser Control UI needs a _secure context_ to build device identity —
 > it refuses plain HTTP to a public IP, and its WebSocket also fails with
 > `1006` over an SSH tunnel to localhost (a known OpenClaw bug in `2026.6.33`;
 > `gateway.controlUi.allowInsecureAuth` only relaxes true-localhost sessions,
@@ -316,4 +316,43 @@ sudo docker compose -f docker-compose.yaml -f docker-compose.gpu.yaml \
 # In graphics land, they dance,
 # Nestled in computers.
 # [agent] run bbbcd5b5-aac0-4423-8c18-c914ad242e3e ended with stopReason=stop
+```
+
+---
+
+```sh
+# pull 7b model
+cd /opt/agent-openclaw
+sudo docker compose -f docker-compose.yaml -f docker-compose.gpu.yaml exec ollama ollama pull qwen2.5-coder:7b
+
+# confirm
+sudo docker compose -f docker-compose.yaml -f docker-compose.gpu.yaml exec ollama ollama list
+# NAME                  ID              SIZE      MODIFIED
+# qwen2.5-coder:7b      dae161e27b0e    4.7 GB    10 seconds ago
+# qwen2.5-coder:1.5b    d7372fd82851    986 MB    About an hour ago
+
+# point OpenClaw at 7b
+cd /opt/agent-openclaw
+CFG=data/openclaw/openclaw.json
+sudo cp $CFG $CFG.bak
+sudo jq '.agents.defaults.model.primary = "ollama/qwen2.5-coder:7b"' $CFG > /tmp/oc.json \
+  && sudo mv /tmp/oc.json $CFG \
+  && sudo chown 1000:1000 $CFG \
+  && echo "MODEL SET OK"
+
+# MODEL SET OK
+
+# verify
+sudo grep -A2 '"model"' $CFG
+      # "model": {
+      #   "primary": "ollama/qwen2.5-coder:7b"
+      # }
+
+# test openclaw with 7b
+cd /opt/agent-openclaw
+sudo docker compose -f docker-compose.yaml -f docker-compose.gpu.yaml \
+  run --rm openclaw-cli agent --agent main \
+  --message "Write and run a hello world Python program"
+
+
 ```
