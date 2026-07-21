@@ -138,6 +138,25 @@ docker compose -f docker-compose.yaml -f docker-compose.gpu.yaml up -d openclaw-
    - OpenClaw: `openclaw agent --message "Write a haiku..."`
 8. This proves the migration is correct before changing anything else.
 
+> **Note — OpenClaw Control UI (browser) skipped; verified via CLI instead.**
+> The browser Control UI needs a *secure context* to build device identity —
+> it refuses plain HTTP to a public IP, and its WebSocket also fails with
+> `1006` over an SSH tunnel to localhost (a known OpenClaw bug in `2026.6.33`;
+> `gateway.controlUi.allowInsecureAuth` only relaxes true-localhost sessions,
+> not LAN/remote). Getting the browser UI would require HTTPS, which is
+> **out of scope** for this migration. **Decision: skip the browser Control UI
+> and verify OpenClaw from the command line:**
+>
+> ```sh
+> docker compose -f docker-compose.yaml -f docker-compose.gpu.yaml \
+>   run --rm openclaw-cli agent --agent main --message "Write a haiku about GPUs"
+> ```
+>
+> This exercises the same agent → Ollama → GPU path and returned a valid
+> completion (`stopReason=stop`). Note the CLI reaches the gateway over the
+> same failing WebSocket and transparently falls back to an **embedded agent**
+> in the CLI container — expected, and sufficient for parity here.
+
 ### Phase D — upgrade the model, unlock tooling
 
 9. `docker compose exec ollama ollama pull qwen2.5-coder:7b` (or 14b).
@@ -201,7 +220,7 @@ ssh -i "<pem>" ubuntu@100.26.64.29
 sudo tail -n 50 /var/log/cloud-init-output.log
 
 
-sudo docker compose exec ollama nvidia-smi   
+sudo docker compose exec ollama nvidia-smi
 # Tue Jul 21 15:48:24 2026
 # +-----------------------------------------------------------------------------------------+
 # | NVIDIA-SMI 595.71.05              Driver Version: 595.71.05      CUDA Version: 13.2     |
@@ -222,4 +241,79 @@ sudo docker compose exec ollama nvidia-smi
 # |=========================================================================================|
 # |    0   N/A  N/A             778      C   /usr/lib/ollama/llama-server           1236MiB |
 # +-----------------------------------------------------------------------------------------+
+
+# test
+curl -s http://localhost:11434/api/generate -d '{
+  "model": "qwen2.5-coder:1.5b",
+  "prompt": "Write a haiku about GPUs"
+}'
+```
+
+---
+
+## Common Commands
+
+| CMD               | Desc                                              |
+| ----------------- | ------------------------------------------------- |
+| `nvidia-smi`      | the one-shot snapshot (driver, VRAM, temp, procs) |
+| `nvidia-smi -L`   | GPU present on host                               |
+| `nvidia-smi dmon` | one-line-per-sample: sm%, mem%, power, temp       |
+| `nvidia-smi pmon` | per-process monitor                               |
+
+```sh
+nvidia-smi
+# Tue Jul 21 15:54:03 2026
+# +-----------------------------------------------------------------------------------------+
+# | NVIDIA-SMI 595.71.05              Driver Version: 595.71.05      CUDA Version: 13.2     |
+# +-----------------------------------------+------------------------+----------------------+
+# | GPU  Name                 Persistence-M | Bus-Id          Disp.A | Volatile Uncorr. ECC |
+# | Fan  Temp   Perf          Pwr:Usage/Cap |           Memory-Usage | GPU-Util  Compute M. |
+# |                                         |                        |               MIG M. |
+# |=========================================+========================+======================|
+# |   0  Tesla T4                       On  |   00000000:00:1E.0 Off |                    0 |
+# | N/A   44C    P0             33W /   70W |    1239MiB /  15360MiB |      0%      Default |
+# |                                         |                        |                  N/A |
+# +-----------------------------------------+------------------------+----------------------+
+
+# +-----------------------------------------------------------------------------------------+
+# | Processes:                                                                              |
+# |  GPU   GI   CI              PID   Type   Process name                        GPU Memory |
+# |        ID   ID                                                               Usage      |
+# |=========================================================================================|
+# |    0   N/A  N/A            8209      C   /usr/lib/ollama/llama-server           1236MiB |
+# +-----------------------------------------------------------------------------------------+
+
+nvidia-smi -L
+# GPU 0: Tesla T4 (UUID: GPU-98178f31-8a86-f31c-2e94-6c57af3f8ebc)
+
+nvidia-smi --query-gpu=name,memory.total,memory.used,utilization.gpu,temperature.gpu --format=csv
+# name, memory.total [MiB], memory.used [MiB], utilization.gpu [%], temperature.gpu
+# Tesla T4, 15360 MiB, 105 MiB, 1 %, 44
+
+# get gateway token
+grep OPENCLAW_GATEWAY_TOKEN /opt/agent-openclaw/.env | cut -d= -f2
+
+cd /opt/agent-openclaw
+sudo docker compose -f docker-compose.yaml -f docker-compose.gpu.yaml \
+  run --rm openclaw-cli agents list
+
+# Agents:
+# - main (default)
+#   Workspace: ~/.openclaw/workspace
+#   Agent dir: ~/.openclaw/agents/main/agent
+#   Model: ollama/qwen2.5-coder:1.5b
+#   Routing rules: 0
+#   Routing: default (no explicit rules)
+# Routing rules map channel/account/peer to an agent. Use --bindings for full rules.
+# Channel status reflects local config/creds. For live health: openclaw channels status --probe.
+
+sudo docker compose -f docker-compose.yaml -f docker-compose.gpu.yaml \
+  run --rm openclaw-cli agent --agent main --message "Write a haiku about GPUs"
+
+# Run `openclaw doctor` for diagnostics.
+# 16:33:27 [agents/tool-policy] tool policy removed 5 tool(s) via tools.profile (coding): agents_list, gateway, message, nodes, tts
+# Gpus like birds soar,
+# In graphics land, they dance,
+# Nestled in computers.
+# [agent] run bbbcd5b5-aac0-4423-8c18-c914ad242e3e ended with stopReason=stop
 ```
